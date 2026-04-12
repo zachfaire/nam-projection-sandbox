@@ -72,8 +72,16 @@
   <p class="subtitle">Adjust forecast drivers — charts update live</p>
 
   <div class="slider-group">
-    <label>New Brand Growth Rate <span class="val" id="v-nbg">20.0%</span></label>
-    <input type="range" id="s-nbg" min="0" max="0.5" step="0.01" value="0.2">
+    <label>New Brand Growth 2026 <span class="val" id="v-nbg26">50.0%</span></label>
+    <input type="range" id="s-nbg26" min="0" max="2.0" step="0.01" value="0.5">
+  </div>
+  <div class="slider-group">
+    <label>New Brand Growth 2027 <span class="val" id="v-nbg27">100.0%</span></label>
+    <input type="range" id="s-nbg27" min="0" max="2.0" step="0.01" value="1.0">
+  </div>
+  <div class="slider-group">
+    <label>New Brand Growth 2028+ <span class="val" id="v-nbg28">10.0%</span></label>
+    <input type="range" id="s-nbg28" min="0" max="0.5" step="0.01" value="0.10">
   </div>
   <div class="slider-group">
     <label>Brand Retention (Mature) <span class="val" id="v-br">85.0%</span></label>
@@ -212,6 +220,25 @@ const HIST = {
   newVintageGMV: {2022:258848402, 2023:220692293, 2024:229725468, 2025:283271426},
 };
 
+// Historical cohort-level mGMV (from spreadsheet mGMV Build rows 51-56)
+const HIST_COHORT_MGMV = {
+  'Pre-2021': {2022:597059431, 2023:601281033, 2024:646710801, 2025:727036712},
+  '2021':     {2022:288168082, 2023:264410622, 2024:274863027, 2025:304697523},
+  '2022':     {2022:210704650, 2023:227425896, 2024:221729329, 2025:245459659},
+  '2023':     {2023:182844859, 2024:218153827, 2025:228959349},
+  '2024':     {2024:194546690, 2025:252442926},
+  '2025':     {2025:242684051},
+};
+// Historical cohort-level FD (from spreadsheet FD GMV Build rows 51-56)
+const HIST_COHORT_FD = {
+  'Pre-2021': {2022:237678747, 2023:275120081, 2024:302100324, 2025:348141155},
+  '2021':     {2022:66731311,  2023:75012295,  2024:81338155,  2025:96810025},
+  '2022':     {2022:48143752,  2023:51426912,  2024:53937653,  2025:63638236},
+  '2023':     {2023:37847434,  2024:40696452,  2025:47043406},
+  '2024':     {2024:35178778,  2025:42778314},
+  '2025':     {2025:40587375},
+};
+
 // Brand cohort counts in 2025 (starting point for forward model)
 const BRAND_COHORTS_2025 = {
   'Pre-2020':4340, '2020':3425, '2021':9694, '2022':11343, '2023':9569, '2024':10358, '2025':10099
@@ -266,7 +293,9 @@ const NEW_BRANDS_2026 = 12119;
 
 // Default input values (base case)
 const DEFAULTS = {
-  newBrandGrowth: 0.20,
+  newBrandGrowth26: 0.50,
+  newBrandGrowth27: 1.00,
+  newBrandGrowth28: 0.10,
   brandRetention: 0.85,
   nonFDGrowth: 0.25,
   nonFDDecay: 0.85,
@@ -305,6 +334,17 @@ function runModel(inp) {
     result.gmvPerRet[y] = (HIST.mgmvTotal[y]+HIST.fdTotal[y]) / HIST.arTotal[y];
     if (HIST.mNDR[y]) { result.mNDR = result.mNDR || {}; result.mNDR[y] = HIST.mNDR[y]; }
     if (HIST.newVintageGMV[y]) { result.newVintageGMV = result.newVintageGMV || {}; result.newVintageGMV[y] = HIST.newVintageGMV[y]; }
+
+    // Populate cohort-level GMV for historical years (for layer cake)
+    for (const c of COHORTS) {
+      const hm = (HIST_COHORT_MGMV[c] || {})[y] || 0;
+      const hf = (HIST_COHORT_FD[c] || {})[y] || 0;
+      if (hm || hf) {
+        result.cohortMgmv[c][y] = hm;
+        result.cohortFd[c][y] = hf;
+        result.cohortTotal[c][y] = hm + hf;
+      }
+    }
   }
 
   // ── Brand Model ──
@@ -349,11 +389,12 @@ function runModel(inp) {
 
   // ── Forward Model: 2026-2036 ──
   let prevNonFDNewRet = NONFD_NEW_RET_2026;
-  let prevNewBrands = NEW_BRANDS_2026;
+  let prevNewBrands = HIST.newBrands[2025]; // 10099 — 2026 will apply growth rate
 
   for (let y = 2026; y <= 2036; y++) {
     // ─── 1. Brand Model ───
-    const newBrands = (y === 2026) ? NEW_BRANDS_2026 : prevNewBrands * (1 + inp.newBrandGrowth);
+    const nbgRate = (y === 2026) ? inp.newBrandGrowth26 : (y === 2027) ? inp.newBrandGrowth27 : inp.newBrandGrowth28;
+    const newBrands = prevNewBrands * (1 + nbgRate);
     result.newBrands[y] = newBrands;
 
     // Age existing brand cohorts
@@ -828,7 +869,9 @@ function fmtK(v) { return `${(v/1e3).toFixed(1)}K`; }
 // SLIDER WIRING
 // ═══════════════════════════════════════════════════════
 const sliderMap = [
-  {id:'s-nbg', key:'newBrandGrowth',  vid:'v-nbg', fmt: v=>`${(v*100).toFixed(1)}%`},
+  {id:'s-nbg26', key:'newBrandGrowth26', vid:'v-nbg26', fmt: v=>`${(v*100).toFixed(1)}%`},
+  {id:'s-nbg27', key:'newBrandGrowth27', vid:'v-nbg27', fmt: v=>`${(v*100).toFixed(1)}%`},
+  {id:'s-nbg28', key:'newBrandGrowth28', vid:'v-nbg28', fmt: v=>`${(v*100).toFixed(1)}%`},
   {id:'s-br',  key:'brandRetention',  vid:'v-br',  fmt: v=>`${(v*100).toFixed(1)}%`},
   {id:'s-nfg', key:'nonFDGrowth',     vid:'v-nfg', fmt: v=>`${(v*100).toFixed(1)}%`},
   {id:'s-nfd', key:'nonFDDecay',      vid:'v-nfd', fmt: v=>v.toFixed(2)},
