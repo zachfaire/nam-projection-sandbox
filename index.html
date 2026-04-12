@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>New Faire Growth</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8f9fa; color: #333; }
+  .header { padding: 24px 32px 8px; background: #fff; border-bottom: 1px solid #e0e0e0; }
+  .header h1 { font-size: 22px; font-weight: 600; color: #1a1a2e; }
+  .timestamp { font-size: 12px; color: #888; margin-top: 4px; }
+  .dashboard { padding: 24px 32px; display: flex; flex-direction: column; gap: 28px; }
+  .card { background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; padding: 20px 24px; }
+  .card h2 { font-size: 14px; font-weight: 600; color: #444; margin-bottom: 16px; }
+  .chart-wrap { position: relative; }
+  .legend { display: flex; gap: 20px; justify-content: flex-end; margin-bottom: 10px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #555; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>New Faire Growth</h1>
+  <div class="timestamp">Data as of 4:23 PM PST, Mar 24 2026 &nbsp;|&nbsp; Source: ANALYTICS.PRODUCTION (Snowflake) &nbsp;|&nbsp; ~7 min lag</div>
+</div>
+
+<div class="dashboard">
+
+  <!-- Chart 1: Daily volume (All) -->
+  <div class="card">
+    <h2>Daily volume by same week day as today (Tuesday)</h2>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#4472C4"></div>ordered_before_now</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#5CB85C"></div>ordered_after_now</div>
+    </div>
+    <div class="chart-wrap"><canvas id="chartAll" height="90"></canvas></div>
+  </div>
+
+  <!-- Chart 2: Daily volume (NAM) -->
+  <div class="card">
+    <h2>[NAM] Daily volume by same week day as today (Tuesday)</h2>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#4472C4"></div>ordered_before_now</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#5CB85C"></div>ordered_after_now</div>
+    </div>
+    <div class="chart-wrap"><canvas id="chartNAM" height="90"></canvas></div>
+  </div>
+
+  <!-- Chart 3: Weekly comparison -->
+  <div class="card">
+    <h2>Current week vs Previous week (Current year and previous year)</h2>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#5CB85C"></div>Prev week last year</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4472C4"></div>This week last year</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#F0AD4E"></div>Last week</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#5BC0DE"></div>This week</div>
+    </div>
+    <div class="chart-wrap"><canvas id="chartWeekly" height="55"></canvas></div>
+  </div>
+
+</div>
+
+<script>
+const fmt = v => '$' + Math.round(v).toLocaleString();
+
+const allLabels  = ["24-09-24","24-10-01","24-10-08","24-10-15","24-10-22","24-10-29","24-11-05","24-11-12","24-11-19","24-11-26","24-12-03","24-12-10","24-12-17","24-12-24","24-12-31","25-01-07","25-01-14","25-01-21","25-01-28","25-02-04","25-02-11","25-02-18","25-02-25","25-03-04","25-03-11","25-03-18","25-03-25","25-04-01","25-04-08","25-04-15","25-04-22","25-04-29","25-05-06","25-05-13","25-05-20","25-05-27","25-06-03","25-06-10","25-06-17","25-06-24","25-07-01","25-07-08","25-07-15","25-07-22","25-07-29","25-08-05","25-08-12","25-08-19","25-08-26","25-09-02"];
+const allBefore  = [0.0,8276.5,7921.6,9267.74,9338.88,9790.77,9708.56,10107.03,9471.07,7453.96,8278.95,6515.97,5108.23,3298.55,6247.22,7701.13,6033.66,39653.12,4951.26,5490.13,5677.3,6403.36,6810.52,7153.37,7182.57,7250.72,7527.32,8377.9,7672.37,7814.23,8297.55,8245.27,8103.93,9277.93,8552.77,8983.0,8387.82,8239.87,8262.64,8439.79,7827.43,8372.8,7366.43,38568.57,7307.26,8672.18,9035.44,9326.68,9565.88,10319.94];
+const allAfter   = [172.16,216.8,172.05,237.84,222.39,250.03,278.25,288.65,276.97,213.4,261.02,202.47,165.59,54.1,162.72,247.12,159.26,1064.33,127.97,162.89,189.09,214.63,207.09,218.36,190.07,188.56,197.42,220.73,181.89,194.74,179.89,217.32,205.58,213.74,209.71,251.96,219.86,217.82,223.14,220.34,190.1,197.74,197.47,829.62,188.53,205.12,241.01,252.87,239.56,262.45];
+
+const namLabels  = allLabels;
+const namBefore  = [0.0,7483.76,7130.0,8494.52,8561.34,8976.55,8740.02,9152.61,8574.4,6679.75,7502.39,5890.6,4693.86,3155.89,5989.17,6943.43,5479.83,36935.41,4452.36,4912.3,5081.07,5856.25,6208.58,6498.97,6503.2,6632.79,6867.57,7635.08,6950.24,7061.3,7462.42,7474.49,7272.8,8476.78,7746.38,8164.3,7565.81,7349.14,7457.02,7730.47,7113.56,7636.59,6650.11,35367.57,6617.38,7871.63,8216.81,8454.22,8628.99,9270.28];
+const namAfter   = [168.2,212.11,168.97,233.86,217.4,231.85,269.13,282.39,260.69,205.74,251.23,195.15,162.66,53.72,160.01,236.36,151.57,1041.43,123.58,157.57,179.99,203.63,197.47,213.12,180.09,176.94,188.59,214.91,179.86,188.82,173.89,212.28,199.03,209.23,203.03,241.47,212.53,215.86,214.3,213.14,184.19,193.96,192.37,799.12,183.76,201.08,228.15,242.65,231.37,256.71];
+
+const weeklyDays = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const prevYrPrevWk = [7474.18,7436.73,7360.44,7160.41,6895.91,5072.76,4764.19];
+const prevYrThisWk = [7722.82,7722.7,7380.46,7291.21,6811.82,5255.91,4520.59];
+const lastWeek     = [10359.6,10778.48,10682.71,9914.57,9215.2,7177.85,6645.64];
+const thisWeek     = [11293.6,11146.08,0,0,0,0,0];
+
+const barOpts = (labels, before, after, maxY) => ({
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'ordered_before_now', data: before, backgroundColor: '#4472C4', stack: 'a', borderWidth: 0 },
+      { label: 'ordered_after_now',  data: after,  backgroundColor: '#5CB85C', stack: 'a', borderWidth: 0 },
+    ]
+  },
+  options: {
+    animation: false,
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}K`,
+          footer: items => {
+            const total = items.reduce((s, i) => s + i.parsed.y, 0);
+            return `Total: ${fmt(total)}K`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        stacked: true,
+        ticks: { font: { size: 10 }, maxRotation: 60, minRotation: 45 },
+        grid: { display: false }
+      },
+      y: {
+        stacked: true,
+        max: maxY,
+        ticks: {
+          callback: v => '$' + (v/1000).toFixed(0) + 'K',
+          font: { size: 11 }
+        },
+        grid: { color: '#f0f0f0' }
+      }
+    }
+  }
+});
+
+new Chart(document.getElementById('chartAll'), barOpts(allLabels, allBefore, allAfter, 45000));
+new Chart(document.getElementById('chartNAM'), barOpts(namLabels, namBefore, namAfter, 42000));
+
+// Weekly grouped bar
+new Chart(document.getElementById('chartWeekly'), {
+  type: 'bar',
+  data: {
+    labels: weeklyDays,
+    datasets: [
+      { label: 'Prev week last year', data: prevYrPrevWk, backgroundColor: '#5CB85C', borderWidth: 0 },
+      { label: 'This week last year', data: prevYrThisWk, backgroundColor: '#4472C4', borderWidth: 0 },
+      { label: 'Last week',           data: lastWeek,     backgroundColor: '#F0AD4E', borderWidth: 0 },
+      { label: 'This week',           data: thisWeek,     backgroundColor: '#5BC0DE', borderWidth: 0 },
+    ]
+  },
+  options: {
+    animation: false,
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y > 0 ? fmt(ctx.parsed.y) + 'K' : '$0'}`
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { font: { size: 12 } },
+        grid: { display: false }
+      },
+      y: {
+        ticks: {
+          callback: v => '$' + (v/1000).toFixed(0) + 'K',
+          font: { size: 11 }
+        },
+        grid: { color: '#f0f0f0' }
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>
