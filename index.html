@@ -2,167 +2,880 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>New Faire Growth</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Faire GMV Build (North America)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8f9fa; color: #333; }
-  .header { padding: 24px 32px 8px; background: #fff; border-bottom: 1px solid #e0e0e0; }
-  .header h1 { font-size: 22px; font-weight: 600; color: #1a1a2e; }
-  .timestamp { font-size: 12px; color: #888; margin-top: 4px; }
-  .dashboard { padding: 24px 32px; display: flex; flex-direction: column; gap: 28px; }
-  .card { background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; padding: 20px 24px; }
-  .card h2 { font-size: 14px; font-weight: 600; color: #444; margin-bottom: 16px; }
-  .chart-wrap { position: relative; }
-  .legend { display: flex; gap: 20px; justify-content: flex-end; margin-bottom: 10px; flex-wrap: wrap; }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #555; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #242836;
+    --border: #2e3347; --text: #e4e6ed; --text2: #8b8fa3;
+    --accent: #6c5ce7; --accent2: #a29bfe;
+    --green: #00b894; --red: #e17055; --blue: #74b9ff;
+    --orange: #fdcb6e; --pink: #fd79a8;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar { width: 320px; min-width: 320px; background: var(--surface);
+    border-right: 1px solid var(--border); padding: 24px 20px;
+    overflow-y: auto; max-height: 100vh; position: sticky; top: 0; }
+  .sidebar h1 { font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--accent2); margin-bottom: 6px; }
+  .sidebar .subtitle { font-size: 11px; color: var(--text2); margin-bottom: 24px; }
+  .slider-group { margin-bottom: 18px; }
+  .slider-group label { display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .slider-group label .val { color: var(--accent2); font-weight: 600; font-size: 13px;
+    font-variant-numeric: tabular-nums; }
+  .slider-group input[type=range] { width: 100%; height: 4px; -webkit-appearance: none;
+    background: var(--border); border-radius: 2px; outline: none; }
+  .slider-group input[type=range]::-webkit-slider-thumb { -webkit-appearance: none;
+    width: 14px; height: 14px; border-radius: 50%; background: var(--accent);
+    cursor: pointer; border: 2px solid var(--accent2); }
+  .divider { border-top: 1px solid var(--border); margin: 16px 0; }
+  .reset-btn { width: 100%; padding: 8px; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text2); border-radius: 6px; cursor: pointer; font-size: 12px; margin-top: 8px; }
+  .reset-btn:hover { background: var(--border); color: var(--text); }
+
+  /* Main */
+  .main { flex: 1; padding: 24px 32px; overflow-y: auto; }
+
+  /* KPI Bar */
+  .kpi-bar { display: flex; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 20px; flex: 1; min-width: 160px; }
+  .kpi .kpi-label { font-size: 11px; color: var(--text2); text-transform: uppercase;
+    letter-spacing: 0.8px; margin-bottom: 4px; }
+  .kpi .kpi-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .kpi-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .kpi .kpi-delta { font-size: 12px; font-weight: 600; }
+  .kpi .kpi-delta.up { color: var(--green); }
+  .kpi .kpi-delta.down { color: var(--red); }
+
+  /* Charts */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-card h3 { font-size: 13px; color: var(--text2); font-weight: 500;
+    margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .chart-card canvas { max-height: 320px; }
+  .chart-card.full canvas { max-height: 380px; }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>New Faire Growth</h1>
-  <div class="timestamp">Data as of 4:23 PM PST, Mar 24 2026 &nbsp;|&nbsp; Source: ANALYTICS.PRODUCTION (Snowflake) &nbsp;|&nbsp; ~7 min lag</div>
+<div class="sidebar">
+  <h1>Faire GMV Build (North America)</h1>
+  <p class="subtitle">Adjust forecast drivers — charts update live</p>
+
+  <div class="slider-group">
+    <label>New Brand Growth Rate <span class="val" id="v-nbg">20.0%</span></label>
+    <input type="range" id="s-nbg" min="0" max="0.5" step="0.01" value="0.2">
+  </div>
+  <div class="slider-group">
+    <label>Brand Retention (Mature) <span class="val" id="v-br">85.0%</span></label>
+    <input type="range" id="s-br" min="0.7" max="0.95" step="0.005" value="0.85">
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="slider-group">
+    <label>Non-FD Growth Rate (2027+) <span class="val" id="v-nfg">25.0%</span></label>
+    <input type="range" id="s-nfg" min="0" max="0.5" step="0.01" value="0.25">
+  </div>
+  <div class="slider-group">
+    <label>Non-FD Annual Growth Decel <span class="val" id="v-nfd">0.85</span></label>
+    <input type="range" id="s-nfd" min="0.5" max="1.0" step="0.01" value="0.85">
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="slider-group">
+    <label>FD Retailers per Ref. Brand <span class="val" id="v-fpb">2.00</span></label>
+    <input type="range" id="s-fpb" min="0.5" max="5.0" step="0.1" value="2.0">
+  </div>
+  <div class="slider-group">
+    <label>FD/Brand Flow-Through <span class="val" id="v-fft">1.00</span></label>
+    <input type="range" id="s-fft" min="0" max="1.0" step="0.01" value="1.00">
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="slider-group">
+    <label>Reorder Retention Improvement Decel <span class="val" id="v-rid">0.75</span></label>
+    <input type="range" id="s-rid" min="0.3" max="1.0" step="0.01" value="0.75">
+  </div>
+  <div class="slider-group">
+    <label>Opening Soon Share <span class="val" id="v-oss">38.7%</span></label>
+    <input type="range" id="s-oss" min="0.2" max="0.7" step="0.01" value="0.387">
+  </div>
+  <div class="slider-group">
+    <label>Max GMV / Retailer (SOW Cap) <span class="val" id="v-cap">$250K</span></label>
+    <input type="range" id="s-cap" min="100000" max="500000" step="10000" value="250000">
+  </div>
+
+  <div class="divider"></div>
+  <button class="reset-btn" onclick="resetSliders()">Reset to Base Case</button>
 </div>
 
-<div class="dashboard">
-
-  <!-- Chart 1: Daily volume (All) -->
-  <div class="card">
-    <h2>Daily volume by same week day as today (Tuesday)</h2>
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:#4472C4"></div>ordered_before_now</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#5CB85C"></div>ordered_after_now</div>
+<div class="main">
+  <div class="kpi-bar">
+    <div class="kpi">
+      <div class="kpi-label">2036 Total GMV</div>
+      <div class="kpi-value" id="kpi-gmv">$89.3B</div>
+      <div class="kpi-delta up" id="kpi-gmv-d">10yr CAGR 38.0%</div>
     </div>
-    <div class="chart-wrap"><canvas id="chartAll" height="90"></canvas></div>
+    <div class="kpi">
+      <div class="kpi-label">2036 mGMV</div>
+      <div class="kpi-value" id="kpi-mgmv">$63.8B</div>
+      <div class="kpi-sub" id="kpi-mgmv-pct">71.4% of total</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">2036 FD GMV</div>
+      <div class="kpi-value" id="kpi-fd">$25.5B</div>
+      <div class="kpi-sub" id="kpi-fd-pct">28.6% of total</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">2036 Active Retailers</div>
+      <div class="kpi-value" id="kpi-ar">1.62M</div>
+      <div class="kpi-delta up" id="kpi-ar-d">CAGR 15.5%</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">2036 Active Brands</div>
+      <div class="kpi-value" id="kpi-ab">271.8K</div>
+      <div class="kpi-delta up" id="kpi-ab-d">CAGR 14.8%</div>
+    </div>
   </div>
 
-  <!-- Chart 2: Daily volume (NAM) -->
-  <div class="card">
-    <h2>[NAM] Daily volume by same week day as today (Tuesday)</h2>
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:#4472C4"></div>ordered_before_now</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#5CB85C"></div>ordered_after_now</div>
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <h3>Total GMV Layer Cake by Cohort ($B)</h3>
+      <canvas id="chart-layer"></canvas>
     </div>
-    <div class="chart-wrap"><canvas id="chartNAM" height="90"></canvas></div>
-  </div>
-
-  <!-- Chart 3: Weekly comparison -->
-  <div class="card">
-    <h2>Current week vs Previous week (Current year and previous year)</h2>
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:#5CB85C"></div>Prev week last year</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#4472C4"></div>This week last year</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#F0AD4E"></div>Last week</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#5BC0DE"></div>This week</div>
+    <div class="chart-card">
+      <h3>Total GMV Trajectory ($B) &amp; YoY Growth</h3>
+      <canvas id="chart-gmv"></canvas>
     </div>
-    <div class="chart-wrap"><canvas id="chartWeekly" height="55"></canvas></div>
+    <div class="chart-card">
+      <h3>GMV per Active Retailer ($K)</h3>
+      <canvas id="chart-gmvret"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Aggregate mNDR (mGMV Net Dollar Retention)</h3>
+      <canvas id="chart-ndr"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>New Vintage GMV ($B) &amp; % of Total</h3>
+      <canvas id="chart-newvintage"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Active Retailers (K) &amp; YoY Growth</h3>
+      <canvas id="chart-ar"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>New Retailers (K) &amp; YoY Growth</h3>
+      <canvas id="chart-nr"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Active Brands (K) &amp; YoY Growth</h3>
+      <canvas id="chart-ab"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>New Brands Activated (K) &amp; YoY Growth</h3>
+      <canvas id="chart-nb"></canvas>
+    </div>
   </div>
-
 </div>
 
 <script>
-const fmt = v => '$' + Math.round(v).toLocaleString();
+// ═══════════════════════════════════════════════════════
+// MODEL DATA (extracted from v9 spreadsheet)
+// ═══════════════════════════════════════════════════════
+const YEARS = [2022,2023,2024,2025,2026,2027,2028,2029,2030,2031,2032,2033,2034,2035,2036];
+const HIST_END = 2025; // last historical year
+const COHORTS = ['Pre-2021','2021','2022','2023','2024','2025','2026','2027','2028','2029','2030','2031','2032','2033','2034','2035','2036'];
 
-const allLabels  = ["24-09-24","24-10-01","24-10-08","24-10-15","24-10-22","24-10-29","24-11-05","24-11-12","24-11-19","24-11-26","24-12-03","24-12-10","24-12-17","24-12-24","24-12-31","25-01-07","25-01-14","25-01-21","25-01-28","25-02-04","25-02-11","25-02-18","25-02-25","25-03-04","25-03-11","25-03-18","25-03-25","25-04-01","25-04-08","25-04-15","25-04-22","25-04-29","25-05-06","25-05-13","25-05-20","25-05-27","25-06-03","25-06-10","25-06-17","25-06-24","25-07-01","25-07-08","25-07-15","25-07-22","25-07-29","25-08-05","25-08-12","25-08-19","25-08-26","25-09-02"];
-const allBefore  = [0.0,8276.5,7921.6,9267.74,9338.88,9790.77,9708.56,10107.03,9471.07,7453.96,8278.95,6515.97,5108.23,3298.55,6247.22,7701.13,6033.66,39653.12,4951.26,5490.13,5677.3,6403.36,6810.52,7153.37,7182.57,7250.72,7527.32,8377.9,7672.37,7814.23,8297.55,8245.27,8103.93,9277.93,8552.77,8983.0,8387.82,8239.87,8262.64,8439.79,7827.43,8372.8,7366.43,38568.57,7307.26,8672.18,9035.44,9326.68,9565.88,10319.94];
-const allAfter   = [172.16,216.8,172.05,237.84,222.39,250.03,278.25,288.65,276.97,213.4,261.02,202.47,165.59,54.1,162.72,247.12,159.26,1064.33,127.97,162.89,189.09,214.63,207.09,218.36,190.07,188.56,197.42,220.73,181.89,194.74,179.89,217.32,205.58,213.74,209.71,251.96,219.86,217.82,223.14,220.34,190.1,197.74,197.47,829.62,188.53,205.12,241.01,252.87,239.56,262.45];
+// Historical frozen data (2022-2025)
+const HIST = {
+  mgmvTotal:  {2022:1095932163, 2023:1275962410, 2024:1556003674, 2025:2001280220},
+  fdTotal:    {2022:352553810,  2023:439406722,  2024:513251362,  2025:638998511},
+  arTotal:    {2022:232427, 2023:250755, 2024:278139, 2025:320843},
+  newRet:     {2022:107433, 2023:94853,  2024:97726,  2025:116246},
+  newRetNonFD:{2022:55951,  2023:43948,  2024:51281,  2025:72823},
+  newRetFD:   {2022:51482,  2023:50905,  2024:46445,  2025:43423},
+  activeBrands:{2022:53230, 2023:55728, 2024:56808, 2025:58828},
+  newBrands:  {2022:23693, 2023:13179, 2024:10711, 2025:10099},
+  mNDR:       {2023:0.997, 2024:1.067, 2025:1.130},
+  newVintageGMV: {2022:258848402, 2023:220692293, 2024:229725468, 2025:283271426},
+};
 
-const namLabels  = allLabels;
-const namBefore  = [0.0,7483.76,7130.0,8494.52,8561.34,8976.55,8740.02,9152.61,8574.4,6679.75,7502.39,5890.6,4693.86,3155.89,5989.17,6943.43,5479.83,36935.41,4452.36,4912.3,5081.07,5856.25,6208.58,6498.97,6503.2,6632.79,6867.57,7635.08,6950.24,7061.3,7462.42,7474.49,7272.8,8476.78,7746.38,8164.3,7565.81,7349.14,7457.02,7730.47,7113.56,7636.59,6650.11,35367.57,6617.38,7871.63,8216.81,8454.22,8628.99,9270.28];
-const namAfter   = [168.2,212.11,168.97,233.86,217.4,231.85,269.13,282.39,260.69,205.74,251.23,195.15,162.66,53.72,160.01,236.36,151.57,1041.43,123.58,157.57,179.99,203.63,197.47,213.12,180.09,176.94,188.59,214.91,179.86,188.82,173.89,212.28,199.03,209.23,203.03,241.47,212.53,215.86,214.3,213.14,184.19,193.96,192.37,799.12,183.76,201.08,228.15,242.65,231.37,256.71];
+// Brand cohort counts in 2025 (starting point for forward model)
+const BRAND_COHORTS_2025 = {
+  'Pre-2020':4340, '2020':3425, '2021':9694, '2022':11343, '2023':9569, '2024':10358, '2025':10099
+};
 
-const weeklyDays = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const prevYrPrevWk = [7474.18,7436.73,7360.44,7160.41,6895.91,5072.76,4764.19];
-const prevYrThisWk = [7722.82,7722.7,7380.46,7291.21,6811.82,5255.91,4520.59];
-const lastWeek     = [10359.6,10778.48,10682.71,9914.57,9215.2,7177.85,6645.64];
-const thisWeek     = [11293.6,11146.08,0,0,0,0,0];
+// AR cohort counts in 2025 (need to track for aging)
+const AR_COHORTS_2025 = {
+  'Pre-2021':43256, '2021':33080, '2022':33964, '2023':38353, '2024':49727, '2025':122463
+};
+// mGMV and FD totals per cohort in 2025 (for reorder chain)
+const MGMV_COHORT_2025 = {
+  'Pre-2021':727036712, '2021':304697523, '2022':245459659, '2023':228959349, '2024':252442926, '2025':242684051
+};
+const FD_COHORT_2025 = {
+  'Pre-2021':348141155, '2021':96810025, '2022':63638236, '2023':47043406, '2024':42778314, '2025':40587375
+};
 
-const barOpts = (labels, before, after, maxY) => ({
-  type: 'bar',
-  data: {
-    labels,
-    datasets: [
-      { label: 'ordered_before_now', data: before, backgroundColor: '#4472C4', stack: 'a', borderWidth: 0 },
-      { label: 'ordered_after_now',  data: after,  backgroundColor: '#5CB85C', stack: 'a', borderWidth: 0 },
-    ]
-  },
-  options: {
-    animation: false,
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}K`,
-          footer: items => {
-            const total = items.reduce((s, i) => s + i.parsed.y, 0);
-            return `Total: ${fmt(total)}K`;
+// Reference brand count (2025 anchor)
+const REF_BRANDS = 58828;
+
+// Retailer retention by age (actual observed from model, not Assumptions tab labels)
+const RET_RETENTION = [0.4802, 0.7645, 0.8428, 0.9230]; // age0→1, 1→2, 2→3, 3+
+
+// Opening mGMV per retailer base rates by age (0=newest...5+=oldest)
+const OPEN_MGMV_RATES = [1228.76, 1873.58, 1921.90, 2147.73, 2660.04, 4456.13];
+const OPEN_FD_RATES   = [169.11,  185.21,  243.35,  333.50,  502.49,  1144.94];
+
+// Age-0 in-year reorder per retailer
+const AGE0_REORD_MGMV = 752.93;
+const AGE0_REORD_FD   = 162.32;
+
+// OS/Established base rates (mGMV)
+const OS_OPEN_MGMV = 1807, EST_OPEN_MGMV = 873;
+const OS_REORD_MGMV = 1155, EST_REORD_MGMV = 506;
+// OS/Established base rates (FD)
+const OS_OPEN_FD = 144, EST_OPEN_FD = 177;
+const OS_REORD_FD = 132, EST_REORD_FD = 178;
+
+// Reorder retention base rates (2025 values) for age 1-5
+const MGMV_RET_2025 = [0.8187, 0.7116, 0.7780, 0.7884, 0.8262]; // age1,2,3,4,5+
+const FD_RET_2025   = [0.9542, 0.9266, 0.9698, 0.9859, 0.9885]; // age1,2,3,4,5+
+
+// Average retention improvement and base case values
+const AVG_RET_IMP = 0.0972;
+
+// Pct referring (flat at 0.42 from 2026+)
+const PCT_REFERRING = 0.42;
+
+// 2026 anchors
+const NONFD_NEW_RET_2026 = 101926;
+const NEW_BRANDS_2026 = 12119;
+
+// Default input values (base case)
+const DEFAULTS = {
+  newBrandGrowth: 0.20,
+  brandRetention: 0.85,
+  nonFDGrowth: 0.25,
+  nonFDDecay: 0.85,
+  fdPerBrand: 2.0,
+  fdFlowThrough: 1.00,
+  retImpDecay: 0.75,
+  osShare: 0.387,
+  maxSOW: 250000,
+};
+const FIXED_ICP_OFFSET = 1.15; // removed from sliders, fixed at base value
+
+// ═══════════════════════════════════════════════════════
+// MODEL ENGINE
+// ═══════════════════════════════════════════════════════
+function runModel(inp) {
+  const result = {
+    mgmvTotal:{}, fdTotal:{}, totalGMV:{}, arTotal:{}, newRet:{}, newRetNonFD:{}, newRetFD:{},
+    activeBrands:{}, newBrands:{}, brandMult:{}, gmvPerRet:{},
+    // Cohort-level for layer cake
+    cohortMgmv:{}, cohortFd:{}, cohortTotal:{},
+  };
+  COHORTS.forEach(c => { result.cohortMgmv[c]={}; result.cohortFd[c]={}; result.cohortTotal[c]={}; });
+
+  // Copy historical data
+  for (let y = 2022; y <= HIST_END; y++) {
+    result.mgmvTotal[y] = HIST.mgmvTotal[y];
+    result.fdTotal[y] = HIST.fdTotal[y];
+    result.totalGMV[y] = HIST.mgmvTotal[y] + HIST.fdTotal[y];
+    result.arTotal[y] = HIST.arTotal[y];
+    result.newRet[y] = HIST.newRet[y];
+    result.newRetNonFD[y] = HIST.newRetNonFD[y];
+    result.newRetFD[y] = HIST.newRetFD[y];
+    result.activeBrands[y] = HIST.activeBrands[y];
+    result.newBrands[y] = HIST.newBrands[y];
+    result.brandMult[y] = HIST.activeBrands[y] / REF_BRANDS;
+    result.gmvPerRet[y] = (HIST.mgmvTotal[y]+HIST.fdTotal[y]) / HIST.arTotal[y];
+    if (HIST.mNDR[y]) { result.mNDR = result.mNDR || {}; result.mNDR[y] = HIST.mNDR[y]; }
+    if (HIST.newVintageGMV[y]) { result.newVintageGMV = result.newVintageGMV || {}; result.newVintageGMV[y] = HIST.newVintageGMV[y]; }
+  }
+
+  // ── Brand Model ──
+  // Track brand cohorts forward
+  const brandCohorts = {}; // brandCohorts[cohortLabel][year] = count
+  // Initialize 2025 cohorts
+  for (const [label, count] of Object.entries(BRAND_COHORTS_2025)) {
+    brandCohorts[label] = {2025: count};
+  }
+
+  // ── AR Cohort Model ──
+  const arCoh = {}; // arCoh[cohortLabel][year]
+  for (const [label, count] of Object.entries(AR_COHORTS_2025)) {
+    arCoh[label] = {2025: count};
+  }
+
+  // ── GMV Cohort Model ──
+  const mgmvCoh = {}; // mgmvCoh[cohortLabel][year]
+  const fdCoh = {};
+  for (const [label, val] of Object.entries(MGMV_COHORT_2025)) {
+    mgmvCoh[label] = {2025: val};
+  }
+  for (const [label, val] of Object.entries(FD_COHORT_2025)) {
+    fdCoh[label] = {2025: val};
+  }
+
+  // ── Reorder retention rates ──
+  // mgmvRetRate[ageIdx][year] where ageIdx 0=age1, 4=age5+
+  const mgmvRetRate = MGMV_RET_2025.map(v => ({2025: v}));
+  const fdRetRate = FD_RET_2025.map(v => ({2025: v}));
+  for (let y = 2026; y <= 2036; y++) {
+    const exp = y - 2025; // 1 for 2026, 2 for 2027, etc.
+    const impFactor = AVG_RET_IMP * Math.pow(inp.retImpDecay, exp);
+    for (let a = 0; a < 5; a++) {
+      mgmvRetRate[a][y] = mgmvRetRate[a][y-1] * (1 + impFactor);
+      fdRetRate[a][y] = fdRetRate[a][y-1] * (1 + impFactor);
+    }
+  }
+
+  // ── FD per brand time series ──
+  const fdPerBrandTS = {2026: inp.fdPerBrand};
+
+  // ── Forward Model: 2026-2036 ──
+  let prevNonFDNewRet = NONFD_NEW_RET_2026;
+  let prevNewBrands = NEW_BRANDS_2026;
+
+  for (let y = 2026; y <= 2036; y++) {
+    // ─── 1. Brand Model ───
+    const newBrands = (y === 2026) ? NEW_BRANDS_2026 : prevNewBrands * (1 + inp.newBrandGrowth);
+    result.newBrands[y] = newBrands;
+
+    // Age existing brand cohorts
+    let totalActiveBrands = 0;
+    // Process existing brand cohorts
+    for (const label of Object.keys(brandCohorts)) {
+      const prevCount = brandCohorts[label][y-1] || 0;
+      brandCohorts[label][y] = prevCount * inp.brandRetention;
+      totalActiveBrands += brandCohorts[label][y];
+    }
+    // Add new brand cohort
+    const newCohortLabel = String(y);
+    if (!brandCohorts[newCohortLabel]) brandCohorts[newCohortLabel] = {};
+    brandCohorts[newCohortLabel][y] = newBrands;
+    totalActiveBrands += newBrands;
+
+    result.activeBrands[y] = totalActiveBrands;
+    const bm = totalActiveBrands / REF_BRANDS;
+    result.brandMult[y] = bm;
+
+    // Referring brands
+    const referringBrands = totalActiveBrands * PCT_REFERRING;
+
+    // FD per brand with flow-through decay
+    if (y > 2026) {
+      const prevRefBrands = result.activeBrands[y-1] * PCT_REFERRING;
+      const refGrowth = referringBrands / prevRefBrands - 1;
+      fdPerBrandTS[y] = fdPerBrandTS[y-1] * (1 + inp.fdFlowThrough * refGrowth) / (1 + refGrowth);
+    }
+
+    // ─── 2. New Retailers ───
+    // FD
+    const fdNewRet = referringBrands * (fdPerBrandTS[y] || inp.fdPerBrand);
+    result.newRetFD[y] = fdNewRet;
+
+    // Non-FD
+    let nonFDNewRet;
+    if (y === 2026) {
+      nonFDNewRet = NONFD_NEW_RET_2026;
+    } else {
+      const growthRate = inp.nonFDGrowth * Math.pow(inp.nonFDDecay, y - 2027);
+      nonFDNewRet = prevNonFDNewRet * (1 + growthRate);
+    }
+    result.newRetNonFD[y] = nonFDNewRet;
+    result.newRet[y] = fdNewRet + nonFDNewRet;
+    result.newRetFD[y] = fdNewRet;
+
+    // ─── 3. Active Retailers by cohort ───
+    let totalAR = 0;
+    // Age existing AR cohorts
+    for (const label of Object.keys(arCoh)) {
+      const prevAR = arCoh[label][y-1] || 0;
+      const birthYr = label === 'Pre-2021' ? 2020 : parseInt(label);
+      const age = y - birthYr; // age entering year y
+      let retRate;
+      if (age <= 1) retRate = RET_RETENTION[0];
+      else if (age === 2) retRate = RET_RETENTION[1];
+      else if (age === 3) retRate = RET_RETENTION[2];
+      else retRate = RET_RETENTION[3];
+      arCoh[label][y] = prevAR * retRate;
+      totalAR += arCoh[label][y];
+    }
+    // New AR cohort
+    const arCohortLabel = String(y);
+    if (!arCoh[arCohortLabel]) arCoh[arCohortLabel] = {};
+    arCoh[arCohortLabel][y] = result.newRet[y];
+    totalAR += result.newRet[y];
+    result.arTotal[y] = totalAR;
+
+    // ─── 4. GMV by cohort ───
+    const icpOffsetVal = Math.pow(1/bm, FIXED_ICP_OFFSET);
+    let yearMgmvTotal = 0, yearFdTotal = 0;
+
+    // Process all active cohorts
+    const activeCohortLabels = Object.keys(arCoh).filter(l => (arCoh[l][y] || 0) > 0);
+
+    // First pass: compute raw GMV (before SOW cap)
+    const rawMgmv = {}, rawFd = {};
+    for (const label of activeCohortLabels) {
+      const ar = arCoh[label][y];
+      const birthYr = label === 'Pre-2021' ? 2020 : parseInt(label);
+      const age = y - birthYr;
+
+      if (!mgmvCoh[label]) mgmvCoh[label] = {};
+      if (!fdCoh[label]) fdCoh[label] = {};
+
+      let openMgmv, reordMgmv, openFd, reordFd;
+
+      if (age === 0) {
+        // New cohort: OS/Est mix
+        const osRA = result.newRet[y] * inp.osShare;
+        const estRA = result.newRet[y] * (1 - inp.osShare);
+        openMgmv = osRA * OS_OPEN_MGMV + estRA * EST_OPEN_MGMV * bm * icpOffsetVal;
+        reordMgmv = osRA * OS_REORD_MGMV + estRA * EST_REORD_MGMV * bm * icpOffsetVal;
+        openFd = osRA * OS_OPEN_FD + estRA * EST_OPEN_FD * bm * icpOffsetVal;
+        reordFd = osRA * OS_REORD_FD + estRA * EST_REORD_FD * bm * icpOffsetVal;
+      } else {
+        // Existing cohort
+        const ageIdx = Math.min(age, 5); // cap at 5+
+        openMgmv = ar * OPEN_MGMV_RATES[ageIdx] * bm;
+        openFd = ar * OPEN_FD_RATES[ageIdx] * bm;
+
+        // Reorder from previous year total
+        const prevMgmv = mgmvCoh[label][y-1] || 0;
+        const prevFd = fdCoh[label][y-1] || 0;
+        const retIdx = Math.min(age, 5) - 1; // age1->idx0, age5+->idx4
+        const mRetRate = mgmvRetRate[Math.min(retIdx, 4)][y];
+        const fRetRate = fdRetRate[Math.min(retIdx, 4)][y];
+        reordMgmv = prevMgmv * mRetRate;
+        reordFd = prevFd * fRetRate;
+      }
+
+      rawMgmv[label] = openMgmv + reordMgmv;
+      rawFd[label] = openFd + reordFd;
+    }
+
+    // Second pass: apply SOW cap
+    for (const label of activeCohortLabels) {
+      const ar = arCoh[label][y];
+      const combined = rawMgmv[label] + rawFd[label];
+      const maxGMV = ar * inp.maxSOW;
+      const capRatio = combined > 0 ? Math.min(1, maxGMV / combined) : 1;
+
+      mgmvCoh[label][y] = rawMgmv[label] * capRatio;
+      fdCoh[label][y] = rawFd[label] * capRatio;
+
+      result.cohortMgmv[label][y] = mgmvCoh[label][y];
+      result.cohortFd[label][y] = fdCoh[label][y];
+      result.cohortTotal[label][y] = mgmvCoh[label][y] + fdCoh[label][y];
+
+      yearMgmvTotal += mgmvCoh[label][y];
+      yearFdTotal += fdCoh[label][y];
+    }
+
+    // Track new-cohort GMV for NDR and new vintage chart
+    const newCohortMgmv = mgmvCoh[arCohortLabel] ? (mgmvCoh[arCohortLabel][y] || 0) : 0;
+    const newCohortFd = fdCoh[arCohortLabel] ? (fdCoh[arCohortLabel][y] || 0) : 0;
+    const existingMgmv = yearMgmvTotal - newCohortMgmv;
+    result.newVintageGMV = result.newVintageGMV || {};
+    result.newVintageGMV[y] = newCohortMgmv + newCohortFd;
+
+    result.mgmvTotal[y] = yearMgmvTotal;
+    result.fdTotal[y] = yearFdTotal;
+    result.totalGMV[y] = yearMgmvTotal + yearFdTotal;
+    result.gmvPerRet[y] = totalAR > 0 ? result.totalGMV[y] / totalAR : 0;
+
+    // Aggregate mNDR = existing-cohort mGMV / prior-year total mGMV
+    const prevMgmvTotal = result.mgmvTotal[y-1] || 0;
+    result.mNDR = result.mNDR || {};
+    result.mNDR[y] = prevMgmvTotal > 0 ? existingMgmv / prevMgmvTotal : null;
+
+    // Update for next iteration
+    prevNonFDNewRet = nonFDNewRet;
+    prevNewBrands = newBrands;
+  }
+
+  // Compute CAGR
+  const gmv2026 = result.totalGMV[2026] || 1;
+  const gmv2036 = result.totalGMV[2036] || 1;
+  result.cagr10yr = Math.pow(gmv2036 / gmv2026, 1/10) - 1;
+
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════════════════
+Chart.defaults.color = '#8b8fa3';
+Chart.defaults.borderColor = '#2e3347';
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 11;
+
+const COHORT_COLORS = [
+  '#6c5ce7','#a29bfe','#74b9ff','#0984e3','#00b894','#00cec9',
+  '#55efc4','#fdcb6e','#ffeaa7','#e17055','#d63031','#fd79a8',
+  '#e84393','#b2bec3','#636e72','#dfe6e9','#2d3436'
+];
+
+let charts = {};
+
+function createCharts() {
+  // Layer cake (stacked bar)
+  charts.layer = new Chart(document.getElementById('chart-layer'), {
+    type: 'bar',
+    data: { labels: YEARS, datasets: [] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: {size:10}, padding: 8,
+          filter: (item) => { const idx = item.datasetIndex; return idx < 8; } // show first 8 only in legend
+        }},
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: $${(ctx.raw/1e9).toFixed(1)}B`
           }
         }
-      }
-    },
-    scales: {
-      x: {
-        stacked: true,
-        ticks: { font: { size: 10 }, maxRotation: 60, minRotation: 45 },
-        grid: { display: false }
       },
-      y: {
-        stacked: true,
-        max: maxY,
-        ticks: {
-          callback: v => '$' + (v/1000).toFixed(0) + 'K',
-          font: { size: 11 }
-        },
-        grid: { color: '#f0f0f0' }
-      }
+      scales: {
+        x: { stacked: true, grid: {display:false} },
+        y: { stacked: true, ticks: { callback: v => `$${(v/1e9).toFixed(0)}B` },
+             title: {display:true, text:'Total GMV ($B)', color:'#8b8fa3'} }
+      },
+      animation: { duration: 200 }
     }
-  }
-});
+  });
 
-new Chart(document.getElementById('chartAll'), barOpts(allLabels, allBefore, allAfter, 45000));
-new Chart(document.getElementById('chartNAM'), barOpts(namLabels, namBefore, namAfter, 42000));
+  // Total GMV trajectory
+  charts.gmv = new Chart(document.getElementById('chart-gmv'), {
+    type: 'bar',
+    data: { labels: YEARS, datasets: [] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels:{boxWidth:10,font:{size:10}} },
+        tooltip: { callbacks: { label: ctx => {
+          if (ctx.dataset.yAxisID === 'y1') return `${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%`;
+          return `${ctx.dataset.label}: $${(ctx.raw/1e9).toFixed(1)}B`;
+        }}}
+      },
+      scales: {
+        x: { stacked: true, grid:{display:false} },
+        y: { stacked: true, ticks:{ callback: v=>`$${(v/1e9).toFixed(0)}B` }, position:'left' },
+        y1: { position:'right', grid:{display:false}, ticks:{callback: v=>`${(v*100).toFixed(0)}%`},
+              min: 0, max: 1 }
+      },
+      animation: { duration: 200 }
+    }
+  });
 
-// Weekly grouped bar
-new Chart(document.getElementById('chartWeekly'), {
-  type: 'bar',
-  data: {
-    labels: weeklyDays,
-    datasets: [
-      { label: 'Prev week last year', data: prevYrPrevWk, backgroundColor: '#5CB85C', borderWidth: 0 },
-      { label: 'This week last year', data: prevYrThisWk, backgroundColor: '#4472C4', borderWidth: 0 },
-      { label: 'Last week',           data: lastWeek,     backgroundColor: '#F0AD4E', borderWidth: 0 },
-      { label: 'This week',           data: thisWeek,     backgroundColor: '#5BC0DE', borderWidth: 0 },
-    ]
-  },
-  options: {
-    animation: false,
-    responsive: true,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y > 0 ? fmt(ctx.parsed.y) + 'K' : '$0'}`
+  // GMV per retailer
+  charts.gmvret = new Chart(document.getElementById('chart-gmvret'), {
+    type: 'bar',
+    data: { labels: YEARS, datasets: [] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels:{boxWidth:10,font:{size:10}} } },
+      scales: {
+        x: { grid:{display:false} },
+        y: { ticks:{ callback: v=>`$${(v/1e3).toFixed(0)}K` } }
+      },
+      animation: { duration: 200 }
+    }
+  });
+
+  // AR chart
+  charts.ar = createDualChart('chart-ar', 'Active Retailers', 'K', 1e3);
+  // NR chart
+  charts.nr = createDualChart('chart-nr', 'New Retailers', 'K', 1e3);
+  // AB chart
+  charts.ab = createDualChart('chart-ab', 'Active Brands', 'K', 1e3);
+  // NB chart
+  charts.nb = createDualChart('chart-nb', 'New Brands', 'K', 1e3);
+
+  // New Vintage GMV chart
+  charts.newvintage = new Chart(document.getElementById('chart-newvintage'), {
+    type: 'bar',
+    data: { labels: YEARS, datasets: [] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels:{boxWidth:10,font:{size:10}} },
+        tooltip: { callbacks: { label: ctx => {
+          if (ctx.dataset.yAxisID === 'y1') return `${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%`;
+          return `${ctx.dataset.label}: $${(ctx.raw/1e9).toFixed(2)}B`;
+        }}}
+      },
+      scales: {
+        x: { grid:{display:false} },
+        y: { position:'left', ticks:{ callback: v=>`$${(v/1e9).toFixed(1)}B` } },
+        y1: { position:'right', grid:{display:false}, ticks:{callback: v=>`${(v*100).toFixed(0)}%`},
+              min: 0, max: 0.3 }
+      },
+      animation: { duration: 200 }
+    }
+  });
+
+  // mNDR chart
+  charts.ndr = new Chart(document.getElementById('chart-ndr'), {
+    type: 'bar',
+    data: { labels: YEARS, datasets: [] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels:{boxWidth:10,font:{size:10}} },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%` }}
+      },
+      scales: {
+        x: { grid:{display:false} },
+        y: { ticks:{ callback: v=>`${(v*100).toFixed(0)}%` },
+             suggestedMin: 0.8, suggestedMax: 1.8 }
+      },
+      animation: { duration: 200 }
+    }
+  });
+}
+
+function createDualChart(canvasId, title, unit, divisor) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: { labels: YEARS, datasets: [] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels:{boxWidth:10,font:{size:10}} },
+        tooltip: { callbacks: { label: ctx => {
+          if (ctx.dataset.yAxisID === 'y1') return `${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%`;
+          return `${ctx.dataset.label}: ${(ctx.raw/divisor).toFixed(1)}${unit}`;
+        }}}
+      },
+      scales: {
+        x: { grid:{display:false} },
+        y: { position:'left', ticks:{ callback: v=>`${(v/divisor).toFixed(0)}${unit}` } },
+        y1: { position:'right', grid:{display:false}, ticks:{callback: v=>`${(v*100).toFixed(0)}%`},
+              min: -0.1, max: 0.8 }
+      },
+      animation: { duration: 200 }
+    }
+  });
+}
+
+function updateCharts(r) {
+  // ── Layer Cake ──
+  const activeCohortsForLayer = COHORTS.filter(c => {
+    return YEARS.some(y => (r.cohortTotal[c]||{})[y] > 0);
+  });
+  // Group small cohorts: show Pre-2021 through 2030, group 2031-2036 as "2031+"
+  const showCohorts = activeCohortsForLayer.filter(c => {
+    if (c === 'Pre-2021') return true;
+    const yr = parseInt(c);
+    return yr <= 2030;
+  });
+
+  charts.layer.data.datasets = showCohorts.map((c, i) => ({
+    label: c,
+    data: YEARS.map(y => {
+      let val = (r.cohortTotal[c]||{})[y] || 0;
+      // For 2030, also add remaining cohorts
+      if (c === '2030') {
+        for (const c2 of activeCohortsForLayer) {
+          const yr2 = parseInt(c2);
+          if (yr2 > 2030) val += (r.cohortTotal[c2]||{})[y] || 0;
         }
       }
-    },
-    scales: {
-      x: {
-        ticks: { font: { size: 12 } },
-        grid: { display: false }
-      },
-      y: {
-        ticks: {
-          callback: v => '$' + (v/1000).toFixed(0) + 'K',
-          font: { size: 11 }
-        },
-        grid: { color: '#f0f0f0' }
-      }
-    }
+      return val;
+    }),
+    backgroundColor: COHORT_COLORS[i % COHORT_COLORS.length] + 'cc',
+    borderWidth: 0,
+  }));
+  // Rename last shown as "2030+"
+  const lastDs = charts.layer.data.datasets[charts.layer.data.datasets.length - 1];
+  if (lastDs) lastDs.label = '2030+';
+  charts.layer.update();
+
+  // ── Total GMV ──
+  const yoyGrowth = YEARS.map((y,i) => i === 0 ? null : (r.totalGMV[y] - r.totalGMV[y-1]) / r.totalGMV[y-1]);
+  charts.gmv.data.datasets = [
+    { label:'mGMV', data: YEARS.map(y=>r.mgmvTotal[y]||0), backgroundColor:'#6c5ce7cc', yAxisID:'y', stack:'s', order:2 },
+    { label:'FD GMV', data: YEARS.map(y=>r.fdTotal[y]||0), backgroundColor:'#00b894cc', yAxisID:'y', stack:'s', order:2 },
+    { label:'YoY Growth', data: yoyGrowth, type:'line', borderColor:'#fdcb6e', backgroundColor:'transparent',
+      pointRadius:3, pointBackgroundColor:'#fdcb6e', yAxisID:'y1', tension:0.3, order:1 },
+  ];
+  charts.gmv.update();
+
+  // ── GMV per Retailer ──
+  charts.gmvret.data.datasets = [
+    { label:'GMV / Retailer', data: YEARS.map(y=>r.gmvPerRet[y]||0),
+      backgroundColor: YEARS.map(y => y <= HIST_END ? '#74b9ffaa' : '#6c5ce7cc'), borderWidth:0 },
+  ];
+  charts.gmvret.update();
+
+  // ── Active Retailers ──
+  const arYoY = YEARS.map((y,i) => i===0 ? null : (r.arTotal[y]-r.arTotal[y-1])/r.arTotal[y-1]);
+  charts.ar.data.datasets = [
+    { label:'Active Retailers', data: YEARS.map(y=>r.arTotal[y]||0),
+      backgroundColor: YEARS.map(y=>y<=HIST_END?'#74b9ffaa':'#6c5ce7cc'), yAxisID:'y', order:2 },
+    { label:'YoY Growth', data: arYoY, type:'line', borderColor:'#fdcb6e', backgroundColor:'transparent',
+      pointRadius:3, pointBackgroundColor:'#fdcb6e', yAxisID:'y1', tension:0.3, order:1 },
+  ];
+  charts.ar.update();
+
+  // ── New Retailers ──
+  const nrYoY = YEARS.map((y,i) => i===0 ? null : r.newRet[y-1]>0 ? (r.newRet[y]-r.newRet[y-1])/r.newRet[y-1] : null);
+  charts.nr.data.datasets = [
+    { label:'Non-FD', data: YEARS.map(y=>r.newRetNonFD[y]||0), backgroundColor:'#74b9ffaa', yAxisID:'y', stack:'s', order:2 },
+    { label:'FD (Brand-driven)', data: YEARS.map(y=>r.newRetFD[y]||0), backgroundColor:'#00b894aa', yAxisID:'y', stack:'s', order:2 },
+    { label:'YoY Growth', data: nrYoY, type:'line', borderColor:'#fdcb6e', backgroundColor:'transparent',
+      pointRadius:3, pointBackgroundColor:'#fdcb6e', yAxisID:'y1', tension:0.3, order:1 },
+  ];
+  charts.nr.options.scales.y.stacked = true;
+  charts.nr.options.scales.x.stacked = true;
+  charts.nr.update();
+
+  // ── Active Brands ──
+  const abYoY = YEARS.map((y,i) => i===0 ? null : (r.activeBrands[y]-r.activeBrands[y-1])/r.activeBrands[y-1]);
+  charts.ab.data.datasets = [
+    { label:'Active Brands', data: YEARS.map(y=>r.activeBrands[y]||0),
+      backgroundColor: YEARS.map(y=>y<=HIST_END?'#74b9ffaa':'#a29bfecc'), yAxisID:'y', order:2 },
+    { label:'YoY Growth', data: abYoY, type:'line', borderColor:'#fdcb6e', backgroundColor:'transparent',
+      pointRadius:3, pointBackgroundColor:'#fdcb6e', yAxisID:'y1', tension:0.3, order:1 },
+  ];
+  charts.ab.update();
+
+  // ── New Brands ──
+  const nbYoY = YEARS.map((y,i) => i===0 ? null : r.newBrands[y-1]>0 ? (r.newBrands[y]-r.newBrands[y-1])/r.newBrands[y-1] : null);
+  charts.nb.data.datasets = [
+    { label:'New Brands', data: YEARS.map(y=>r.newBrands[y]||0),
+      backgroundColor: YEARS.map(y=>y<=HIST_END?'#74b9ffaa':'#fd79a8cc'), yAxisID:'y', order:2 },
+    { label:'YoY Growth', data: nbYoY, type:'line', borderColor:'#fdcb6e', backgroundColor:'transparent',
+      pointRadius:3, pointBackgroundColor:'#fdcb6e', yAxisID:'y1', tension:0.3, order:1 },
+  ];
+  charts.nb.update();
+
+  // ── mNDR ──
+  const ndrData = YEARS.map(y => (r.mNDR||{})[y] || null);
+  charts.ndr.data.datasets = [
+    { label:'Aggregate mNDR', data: ndrData,
+      backgroundColor: YEARS.map(y => y <= HIST_END ? '#74b9ffaa' : '#00b894cc'), borderWidth: 0 },
+    { label:'100% (Break-even)', data: YEARS.map(() => 1.0), type:'line',
+      borderColor:'#e1705566', borderDash:[4,4], backgroundColor:'transparent',
+      pointRadius:0, borderWidth:1.5 },
+  ];
+  charts.ndr.update();
+
+  // ── New Vintage GMV ──
+  const nvGmv = YEARS.map(y => (r.newVintageGMV||{})[y] || null);
+  const nvPct = YEARS.map(y => {
+    const nv = (r.newVintageGMV||{})[y];
+    const tot = r.totalGMV[y];
+    return (nv && tot) ? nv / tot : null;
+  });
+  charts.newvintage.data.datasets = [
+    { label:'New Vintage GMV', data: nvGmv,
+      backgroundColor: YEARS.map(y => y <= HIST_END ? '#74b9ffaa' : '#fd79a8cc'), yAxisID:'y', order:2 },
+    { label:'% of Total GMV', data: nvPct, type:'line', borderColor:'#fdcb6e',
+      backgroundColor:'transparent', pointRadius:3, pointBackgroundColor:'#fdcb6e',
+      yAxisID:'y1', tension:0.3, order:1 },
+  ];
+  charts.newvintage.update();
+
+  // ── KPIs ──
+  const gmv36 = r.totalGMV[2036] || 0;
+  const mgmv36 = r.mgmvTotal[2036] || 0;
+  const fd36 = r.fdTotal[2036] || 0;
+  const ar36 = r.arTotal[2036] || 0;
+  const ab36 = r.activeBrands[2036] || 0;
+
+  document.getElementById('kpi-gmv').textContent = fmtB(gmv36);
+  document.getElementById('kpi-gmv-d').textContent = `10yr CAGR ${(r.cagr10yr*100).toFixed(1)}%`;
+  document.getElementById('kpi-gmv-d').className = 'kpi-delta ' + (r.cagr10yr > 0 ? 'up' : 'down');
+
+  document.getElementById('kpi-mgmv').textContent = fmtB(mgmv36);
+  document.getElementById('kpi-mgmv-pct').textContent = `${(mgmv36/gmv36*100).toFixed(1)}% of total`;
+
+  document.getElementById('kpi-fd').textContent = fmtB(fd36);
+  document.getElementById('kpi-fd-pct').textContent = `${(fd36/gmv36*100).toFixed(1)}% of total`;
+
+  document.getElementById('kpi-ar').textContent = fmtM(ar36);
+  const arCagr = Math.pow(ar36 / r.arTotal[2026], 1/10) - 1;
+  document.getElementById('kpi-ar-d').textContent = `CAGR ${(arCagr*100).toFixed(1)}%`;
+  document.getElementById('kpi-ar-d').className = 'kpi-delta up';
+
+  document.getElementById('kpi-ab').textContent = fmtK(ab36);
+  const abCagr = Math.pow(ab36 / r.activeBrands[2026], 1/10) - 1;
+  document.getElementById('kpi-ab-d').textContent = `CAGR ${(abCagr*100).toFixed(1)}%`;
+  document.getElementById('kpi-ab-d').className = 'kpi-delta up';
+}
+
+function fmtB(v) { return `$${(v/1e9).toFixed(1)}B`; }
+function fmtM(v) {
+  if (v >= 1e6) return `${(v/1e6).toFixed(2)}M`;
+  return `${(v/1e3).toFixed(0)}K`;
+}
+function fmtK(v) { return `${(v/1e3).toFixed(1)}K`; }
+
+// ═══════════════════════════════════════════════════════
+// SLIDER WIRING
+// ═══════════════════════════════════════════════════════
+const sliderMap = [
+  {id:'s-nbg', key:'newBrandGrowth',  vid:'v-nbg', fmt: v=>`${(v*100).toFixed(1)}%`},
+  {id:'s-br',  key:'brandRetention',  vid:'v-br',  fmt: v=>`${(v*100).toFixed(1)}%`},
+  {id:'s-nfg', key:'nonFDGrowth',     vid:'v-nfg', fmt: v=>`${(v*100).toFixed(1)}%`},
+  {id:'s-nfd', key:'nonFDDecay',      vid:'v-nfd', fmt: v=>v.toFixed(2)},
+  {id:'s-fpb', key:'fdPerBrand',      vid:'v-fpb', fmt: v=>v.toFixed(2)},
+  {id:'s-fft', key:'fdFlowThrough',   vid:'v-fft', fmt: v=>v.toFixed(2)},
+  {id:'s-rid', key:'retImpDecay',     vid:'v-rid', fmt: v=>v.toFixed(2)},
+  {id:'s-oss', key:'osShare',         vid:'v-oss', fmt: v=>`${(v*100).toFixed(1)}%`},
+  {id:'s-cap', key:'maxSOW',          vid:'v-cap', fmt: v=>`$${(v/1e3).toFixed(0)}K`},
+];
+
+function getInputs() {
+  const inp = {};
+  for (const s of sliderMap) {
+    inp[s.key] = parseFloat(document.getElementById(s.id).value);
   }
-});
+  return inp;
+}
+
+function updateLabels() {
+  for (const s of sliderMap) {
+    const v = parseFloat(document.getElementById(s.id).value);
+    document.getElementById(s.vid).textContent = s.fmt(v);
+  }
+}
+
+function recalc() {
+  updateLabels();
+  const inp = getInputs();
+  const result = runModel(inp);
+  updateCharts(result);
+}
+
+function resetSliders() {
+  for (const s of sliderMap) {
+    document.getElementById(s.id).value = DEFAULTS[s.key];
+  }
+  recalc();
+}
+
+// Initialize
+createCharts();
+recalc();
+
+// Bind sliders
+for (const s of sliderMap) {
+  document.getElementById(s.id).addEventListener('input', recalc);
+}
 </script>
 </body>
 </html>
