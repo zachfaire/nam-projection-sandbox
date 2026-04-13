@@ -428,10 +428,13 @@ function runModel(inp) {
 
     // Age existing brand cohorts
     let totalActiveBrands = 0;
-    // Process existing brand cohorts
+    // Process existing brand cohorts (90% first-year retention, 85% mature)
     for (const label of Object.keys(brandCohorts)) {
       const prevCount = brandCohorts[label][y-1] || 0;
-      brandCohorts[label][y] = prevCount * 0.85; // brand retention fixed at 85%
+      const cohortBirthYr = parseInt(label) || 2019; // Pre-2020 → 2019
+      const cohortAge = y - cohortBirthYr; // age 1 = first year after birth
+      const brandRet = (cohortAge === 1) ? 0.90 : 0.85;
+      brandCohorts[label][y] = Math.round(prevCount * brandRet);
       totalActiveBrands += brandCohorts[label][y];
     }
     // Add new brand cohort
