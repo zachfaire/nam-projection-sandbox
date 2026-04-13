@@ -5,6 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Faire GMV Build (North America)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// Custom plugin: show total label on top of stacked bars
+const stackedTotalPlugin = {
+  id: 'stackedTotal',
+  afterDraw(chart) {
+    if (!chart.options.plugins.stackedTotal?.display) return;
+    const {ctx} = chart;
+    const meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+    if (!meta || !meta.data) return;
+    ctx.save();
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillStyle = '#8b8fa3';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    meta.data.forEach((bar, i) => {
+      let total = 0;
+      chart.data.datasets.forEach(ds => { total += (ds.data[i] || 0); });
+      if (total > 0) {
+        ctx.fillText('$' + (total/1e9).toFixed(1) + 'B', bar.x, bar.y - 4);
+      }
+    });
+    ctx.restore();
+  }
+};
+Chart.register(stackedTotalPlugin);
+</script>
 <style>
   :root {
     --bg: #0f1117; --surface: #1a1d27; --surface2: #242836;
@@ -22,8 +48,11 @@
     border-right: 1px solid var(--border); padding: 24px 20px;
     overflow-y: auto; max-height: 100vh; position: sticky; top: 0; }
   .sidebar h1 { font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px;
-    color: var(--accent2); margin-bottom: 6px; }
+    color: var(--accent2); margin-bottom: 16px; }
   .sidebar .subtitle { font-size: 11px; color: var(--text2); margin-bottom: 24px; }
+  .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--accent); font-weight: 600; margin-bottom: 12px; margin-top: 4px; }
+  .main h1 { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 20px; }
   .slider-group { margin-bottom: 18px; }
   .slider-group label { display: flex; justify-content: space-between; align-items: baseline;
     font-size: 12px; color: var(--text2); margin-bottom: 4px; }
@@ -68,9 +97,9 @@
 <body>
 
 <div class="sidebar">
-  <h1>Faire GMV Build (North America)</h1>
-  <p class="subtitle">Adjust forecast drivers — charts update live</p>
+  <h1>Key Input Control Panel</h1>
 
+  <div class="section-label">Supply Centric</div>
   <div class="slider-group">
     <label>New Brand Growth 2026 <span class="val" id="v-nbg26">50.0%</span></label>
     <input type="range" id="s-nbg26" min="0" max="2.0" step="0.01" value="0.5">
@@ -83,24 +112,10 @@
     <label>New Brand Growth 2028+ <span class="val" id="v-nbg28">10.0%</span></label>
     <input type="range" id="s-nbg28" min="0" max="0.5" step="0.01" value="0.10">
   </div>
-  <div class="slider-group">
-    <label>Brand Retention (Mature) <span class="val" id="v-br">85.0%</span></label>
-    <input type="range" id="s-br" min="0.7" max="0.95" step="0.005" value="0.85">
-  </div>
 
   <div class="divider"></div>
 
-  <div class="slider-group">
-    <label>Non-FD Growth Rate (2027+) <span class="val" id="v-nfg">25.0%</span></label>
-    <input type="range" id="s-nfg" min="0" max="0.5" step="0.01" value="0.25">
-  </div>
-  <div class="slider-group">
-    <label>Non-FD Annual Growth Decel <span class="val" id="v-nfd">0.85</span></label>
-    <input type="range" id="s-nfd" min="0.5" max="1.0" step="0.01" value="0.85">
-  </div>
-
-  <div class="divider"></div>
-
+  <div class="section-label">Retailer Acquisition</div>
   <div class="slider-group">
     <label>FD Retailers per Ref. Brand <span class="val" id="v-fpb">2.00</span></label>
     <input type="range" id="s-fpb" min="0.5" max="5.0" step="0.1" value="2.0">
@@ -109,16 +124,29 @@
     <label>FD/Brand Flow-Through <span class="val" id="v-fft">1.00</span></label>
     <input type="range" id="s-fft" min="0" max="1.0" step="0.01" value="1.00">
   </div>
+  <div class="slider-group">
+    <label>Non-FD Growth Rate (2027+) <span class="val" id="v-nfg">25.0%</span></label>
+    <input type="range" id="s-nfg" min="0" max="0.5" step="0.01" value="0.25">
+  </div>
+  <div class="slider-group">
+    <label>Non-FD Annual Growth Decel <span class="val" id="v-nfd">0.85</span></label>
+    <input type="range" id="s-nfd" min="0.5" max="1.0" step="0.01" value="0.85">
+  </div>
+  <div class="slider-group">
+    <label>Opening Soon RA Share <span class="val" id="v-oss">38.7%</span></label>
+    <input type="range" id="s-oss" min="0.2" max="0.7" step="0.01" value="0.387">
+  </div>
 
   <div class="divider"></div>
 
+  <div class="section-label">Retention Mechanics</div>
+  <div class="slider-group">
+    <label>Opening Order Brand Elasticity <span class="val" id="v-bme">0.50</span></label>
+    <input type="range" id="s-bme" min="0" max="1.0" step="0.05" value="0.50">
+  </div>
   <div class="slider-group">
     <label>Reorder Retention Improvement Decel <span class="val" id="v-rid">0.75</span></label>
     <input type="range" id="s-rid" min="0.3" max="1.0" step="0.01" value="0.75">
-  </div>
-  <div class="slider-group">
-    <label>Opening Soon Share <span class="val" id="v-oss">38.7%</span></label>
-    <input type="range" id="s-oss" min="0.2" max="0.7" step="0.01" value="0.387">
   </div>
   <div class="slider-group">
     <label>Max GMV / Retailer (SOW Cap) <span class="val" id="v-cap">$250K</span></label>
@@ -130,6 +158,7 @@
 </div>
 
 <div class="main">
+  <h1>Faire GMV Build (North America)</h1>
   <div class="kpi-bar">
     <div class="kpi">
       <div class="kpi-label">2036 Total GMV</div>
@@ -296,11 +325,11 @@ const DEFAULTS = {
   newBrandGrowth26: 0.50,
   newBrandGrowth27: 1.00,
   newBrandGrowth28: 0.10,
-  brandRetention: 0.85,
   nonFDGrowth: 0.25,
   nonFDDecay: 0.85,
   fdPerBrand: 2.0,
   fdFlowThrough: 1.00,
+  bmElasticity: 0.50,
   retImpDecay: 0.75,
   osShare: 0.387,
   maxSOW: 250000,
@@ -402,7 +431,7 @@ function runModel(inp) {
     // Process existing brand cohorts
     for (const label of Object.keys(brandCohorts)) {
       const prevCount = brandCohorts[label][y-1] || 0;
-      brandCohorts[label][y] = prevCount * inp.brandRetention;
+      brandCohorts[label][y] = prevCount * 0.85; // brand retention fixed at 85%
       totalActiveBrands += brandCohorts[label][y];
     }
     // Add new brand cohort
@@ -465,6 +494,7 @@ function runModel(inp) {
     result.arTotal[y] = totalAR;
 
     // ─── 4. GMV by cohort ───
+    const effBM = Math.pow(bm, inp.bmElasticity); // diminishing returns on brand supply
     const icpOffsetVal = Math.pow(1/bm, FIXED_ICP_OFFSET);
     let yearMgmvTotal = 0, yearFdTotal = 0;
 
@@ -487,15 +517,15 @@ function runModel(inp) {
         // New cohort: OS/Est mix
         const osRA = result.newRet[y] * inp.osShare;
         const estRA = result.newRet[y] * (1 - inp.osShare);
-        openMgmv = osRA * OS_OPEN_MGMV + estRA * EST_OPEN_MGMV * bm * icpOffsetVal;
-        reordMgmv = osRA * OS_REORD_MGMV + estRA * EST_REORD_MGMV * bm * icpOffsetVal;
-        openFd = osRA * OS_OPEN_FD + estRA * EST_OPEN_FD * bm * icpOffsetVal;
-        reordFd = osRA * OS_REORD_FD + estRA * EST_REORD_FD * bm * icpOffsetVal;
+        openMgmv = osRA * OS_OPEN_MGMV + estRA * EST_OPEN_MGMV * effBM * icpOffsetVal;
+        reordMgmv = osRA * OS_REORD_MGMV + estRA * EST_REORD_MGMV * effBM * icpOffsetVal;
+        openFd = osRA * OS_OPEN_FD + estRA * EST_OPEN_FD * effBM * icpOffsetVal;
+        reordFd = osRA * OS_REORD_FD + estRA * EST_REORD_FD * effBM * icpOffsetVal;
       } else {
         // Existing cohort
         const ageIdx = Math.min(age, 5); // cap at 5+
-        openMgmv = ar * OPEN_MGMV_RATES[ageIdx] * bm;
-        openFd = ar * OPEN_FD_RATES[ageIdx] * bm;
+        openMgmv = ar * OPEN_MGMV_RATES[ageIdx] * effBM;
+        openFd = ar * OPEN_FD_RATES[ageIdx] * effBM;
 
         // Reorder from previous year total
         const prevMgmv = mgmvCoh[label][y-1] || 0;
@@ -590,7 +620,8 @@ function createCharts() {
           callbacks: {
             label: ctx => `${ctx.dataset.label}: $${(ctx.raw/1e9).toFixed(1)}B`
           }
-        }
+        },
+        stackedTotal: { display: true }
       },
       scales: {
         x: { stacked: true, grid: {display:false} },
@@ -872,11 +903,11 @@ const sliderMap = [
   {id:'s-nbg26', key:'newBrandGrowth26', vid:'v-nbg26', fmt: v=>`${(v*100).toFixed(1)}%`},
   {id:'s-nbg27', key:'newBrandGrowth27', vid:'v-nbg27', fmt: v=>`${(v*100).toFixed(1)}%`},
   {id:'s-nbg28', key:'newBrandGrowth28', vid:'v-nbg28', fmt: v=>`${(v*100).toFixed(1)}%`},
-  {id:'s-br',  key:'brandRetention',  vid:'v-br',  fmt: v=>`${(v*100).toFixed(1)}%`},
   {id:'s-nfg', key:'nonFDGrowth',     vid:'v-nfg', fmt: v=>`${(v*100).toFixed(1)}%`},
   {id:'s-nfd', key:'nonFDDecay',      vid:'v-nfd', fmt: v=>v.toFixed(2)},
   {id:'s-fpb', key:'fdPerBrand',      vid:'v-fpb', fmt: v=>v.toFixed(2)},
   {id:'s-fft', key:'fdFlowThrough',   vid:'v-fft', fmt: v=>v.toFixed(2)},
+  {id:'s-bme', key:'bmElasticity',    vid:'v-bme', fmt: v=>v.toFixed(2)},
   {id:'s-rid', key:'retImpDecay',     vid:'v-rid', fmt: v=>v.toFixed(2)},
   {id:'s-oss', key:'osShare',         vid:'v-oss', fmt: v=>`${(v*100).toFixed(1)}%`},
   {id:'s-cap', key:'maxSOW',          vid:'v-cap', fmt: v=>`$${(v/1e3).toFixed(0)}K`},
